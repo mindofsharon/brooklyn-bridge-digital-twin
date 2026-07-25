@@ -1,0 +1,15 @@
+# Virtual environment
+.venv/
+
+# Python cache
+__pycache__/
+*.py[cod]
+
+# Generated data files
+*.csv
+
+# macOS files
+.DS_Store
+
+# VS Code
+.vscode/
