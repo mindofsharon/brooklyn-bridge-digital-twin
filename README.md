@@ -15,9 +15,10 @@
 
 ### Step 1: Prepare Data for Simulation
 Clone the repository and run the Python script to convert the raw API data to simulation ready data
-'''bash
-python main.py
-'''
+  ```bash
+   python main.py
+   
+   ```
 Data is also included in the zip file. 
 
 ### Step 2: Run the Arena Simulation 
