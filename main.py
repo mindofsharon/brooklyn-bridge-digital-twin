@@ -231,10 +231,14 @@ bikes_by_day = (
     df.groupby(['day_of_week'], as_index=False)[['counts']].sum()
 )
 
+bikes_by_day['counts'] = bikes_by_day['counts'] / 52
+
 # sum of pedestrians by day
 pedestrian_by_day = (
-    df_pedestrian.groupby(['day_of_week'], as_index=False)[['pedestrian_count']].sum()
+    df_pedestrian.groupby(['day_of_week'], as_index=False)[['pedestrian_count']].sum() 
 )
+
+pedestrian_by_day['pedestrian_count'] = pedestrian_by_day['pedestrian_count'] / 52
 
 # -------------------------------
 # Plot bikes and pedestrians in one figure with two subplots
