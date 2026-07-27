@@ -92,8 +92,8 @@ df_pedestrian = df_pedestrian[df_pedestrian['year'] == 2019]
 
 # get peak traffic based on # of counts
 print(df['hour'].value_counts())
-df = df[df['hour'].isin([14, 15, 16, 17, 18])]
-df_pedestrian = df_pedestrian[df_pedestrian['hour'].isin([14, 15, 16, 17, 18])]
+df = df[df['hour'].isin([14, 15, 16, 17])]
+df_pedestrian = df_pedestrian[df_pedestrian['hour'].isin([14, 15, 16, 17])]
 
 # bike counts by day of week, 15 min increments, and direction
 day_of_week_avg = (
@@ -113,6 +113,27 @@ day_of_week_avg = (
       .round(2)
       .sort_values(['day_of_week', 'hour_minute', 'direction'])
 )
+
+# hourly bike counts by 15 min increments and direction (averaged across all days of week)
+day_of_week_avg_15_min = (
+    df.groupby(['hour_minute', 'direction'], as_index=False)
+      .agg(
+            avg_counts=('counts', 'mean'),
+            std_counts=('counts', 'std'),
+            min_counts=('counts', 'min'),
+            max_counts=('counts', 'max')
+        )
+      .rename(columns={
+            'avg_counts': 'avg_counts',
+            'std_counts': 'std_counts',
+            'min_counts': 'min_counts',
+            'max_counts': 'max_counts'
+        })
+      .round(2)
+      .sort_values([ 'hour_minute', 'direction'])
+)
+
+day_of_week_avg_15_min['avg_counts'] = day_of_week_avg_15_min['avg_counts'] * 4
 
 # bike counts by day of week, hourly increments, and direction
 day_of_week_avg_by_hour = (
@@ -184,109 +205,59 @@ pedestrian_week_avg_by_hour = (
       .sort_values(['hour_minute'])
 )
 
-# -------------------------------
-# sum of bikes/pedestrians by day
-# -------------------------------
-bike_daily_totals = (
-    df.assign(date=df['timestamp'].dt.date)
-      .groupby(['date', 'direction'], as_index=False)['counts']
-      .sum()
-      .rename(columns={'counts': 'bike_total'})
-      .sort_values(['date', 'direction'])
-)
+# expand each hourly value into 4 quarter-hour slots and divide by 4 to get 15-minute averages
+pedestrian_week_avg_by_hour_15min = []
+for _, row in pedestrian_week_avg_by_hour.iterrows():
+    hour = int(row['hour_minute'][:2])
+    for minute in [0, 15, 30, 45]:
+        pedestrian_week_avg_by_hour_15min.append({
+            'hour_minute': f'{hour:02d}:{minute:02d}',
+            'avg_pedestrian_count_by_hour_15min': row['avg_pedestrian_count_by_hour'] / 4,
+            'avg_in_by_hour_15min': row['avg_in_by_hour'] / 4,
+            'avg_out_by_hour_15min': row['avg_out_by_hour'] / 4,
+        })
 
-bike_daily_totals = bike_daily_totals.pivot_table(
-    index='date',
-    columns='direction',
-    values='bike_total',
-    aggfunc='sum'
-).reset_index().rename(columns={'in': 'bike_in_total', 'out': 'bike_out_total'})
-
-pedestrian_daily_totals = (
-    df_pedestrian.assign(date=df_pedestrian['timestamp'].dt.date)
-      .groupby('date', as_index=False)[['pedestrian_count', 'in', 'out']]
-      .sum()
-      .rename(columns={
-          'pedestrian_count': 'pedestrian_total',
-          'in': 'pedestrian_in_total',
-          'out': 'pedestrian_out_total'
-      })
-      .sort_values('date')
-)
-
-daily_totals = (
-    bike_daily_totals.merge(pedestrian_daily_totals, on='date', how='outer')
-      .sort_values('date')
-)
-
-print(daily_totals)
-
+pedestrian_week_avg_by_hour_15min = pd.DataFrame(pedestrian_week_avg_by_hour_15min).sort_values('hour_minute')
 
 # -------------------------------
-# Plot bikes and pedestrians on separate figures, with in/out on the same plot
+# avg of bikes/pedestrians 
 # -------------------------------
-# Bike figure (15-minute slots)
-bike_slot_frame = pd.DataFrame({'slot': [f"{hour:02d}:{minute:02d}" for hour in range(14, 18) for minute in [0, 15, 30, 45]]})
 
-bike_in_plot = (
-    df[df['direction'] == 'in']
-    .assign(slot=df.loc[df['direction'] == 'in', 'timestamp'].dt.floor('15min').dt.strftime('%H:%M'))
-    .groupby('slot', as_index=False)['counts']
-    .mean()
-    .rename(columns={'counts': 'avg_bike_in'})
-)
+df['counts'].describe()
+df_pedestrian['pedestrian_count'].describe()
 
-bike_out_plot = (
-    df[df['direction'] == 'out']
-    .assign(slot=df.loc[df['direction'] == 'out', 'timestamp'].dt.floor('15min').dt.strftime('%H:%M'))
-    .groupby('slot', as_index=False)['counts']
-    .mean()
-    .rename(columns={'counts': 'avg_bike_out'})
-)
+# -------------------------------
+# Plot bikes and pedestrians in one figure with two subplots
+# -------------------------------
 
-bike_plot_data = bike_slot_frame.merge(bike_in_plot, on='slot', how='left').merge(bike_out_plot, on='slot', how='left').fillna(0)
+# plot bike counts by 15-minute increments
+plot_data = day_of_week_avg_15_min.pivot(index='hour_minute', columns='direction', values='avg_counts').reset_index()
+plot_data.rename(columns={'in': 'manhattan bound', 'out': 'brooklyn bound'}, inplace=True)
 
-fig_bike, ax_bike = plt.subplots(figsize=(12, 6))
-ax_bike.plot(range(len(bike_plot_data)), bike_plot_data['avg_bike_in'], marker='o', linewidth=2, label='Bike In', color='tab:blue')
-ax_bike.plot(range(len(bike_plot_data)), bike_plot_data['avg_bike_out'], marker='s', linewidth=2, label='Bike Out', color='tab:orange')
-ax_bike.set_title('Bike Counts by 15-Minute Slot')
-ax_bike.set_ylabel('Average count')
-ax_bike.set_xlabel('Time slot')
-ax_bike.set_xticks(range(len(bike_plot_data)))
-ax_bike.set_xticklabels(bike_plot_data['slot'], rotation=45)
-ax_bike.legend()
-ax_bike.grid(alpha=0.2)
-plt.tight_layout()
-plt.show()
+# plot pedestrian counts by 15-minute increments
+plot_data_pedestrian = pedestrian_week_avg_by_hour_15min.copy()
+plot_data_pedestrian.rename(columns={'avg_in_by_hour_15min': 'manhattan bound', 'avg_out_by_hour_15min': 'brooklyn bound'}, inplace=True)
+plot_data_pedestrian['manhattan bound'] = plot_data_pedestrian['manhattan bound'] * 4
+plot_data_pedestrian['brooklyn bound'] = plot_data_pedestrian['brooklyn bound'] * 4
 
-# Pedestrian figure (hourly slots)
-pedestrian_slot_frame = pd.DataFrame({'slot': [f"{hour:02d}:00" for hour in range(14, 18)]})
+fig, axes = plt.subplots(2, 1, figsize=(12, 10), sharex=True)
 
-pedestrian_in_plot = (
-    df_pedestrian.assign(slot=df_pedestrian['timestamp'].dt.floor('h').dt.strftime('%H:00'))
-    .groupby('slot', as_index=False)['in']
-    .mean()
-    .rename(columns={'in': 'avg_pedestrian_in'})
-)
+# bike subplot
+axes[0].plot(plot_data['hour_minute'], plot_data['manhattan bound'], marker='o', linewidth=2, label='Manhattan Bound', color='tab:blue')
+axes[0].plot(plot_data['hour_minute'], plot_data['brooklyn bound'], marker='s', linewidth=2, label='Brooklyn Bound', color='tab:orange')
+axes[0].set_title('Hourly Bike Counts by 15-Minute Slot (2019)')
+axes[0].set_ylabel('Average count')
+axes[0].legend()
+axes[0].grid(alpha=0.2)
 
-pedestrian_out_plot = (
-    df_pedestrian.assign(slot=df_pedestrian['timestamp'].dt.floor('h').dt.strftime('%H:00'))
-    .groupby('slot', as_index=False)['out']
-    .mean()
-    .rename(columns={'out': 'avg_pedestrian_out'})
-)
+# pedestrian subplot
+axes[1].plot(plot_data_pedestrian['hour_minute'], plot_data_pedestrian['manhattan bound'], marker='o', linewidth=2, label='Manhattan Bound', color='tab:green')
+axes[1].plot(plot_data_pedestrian['hour_minute'], plot_data_pedestrian['brooklyn bound'], marker='s', linewidth=2, label='Brooklyn Bound', color='tab:red')
+axes[1].set_title('Hourly Pedestrian Counts by 15-Minute Slot (2019)')
+axes[1].set_ylabel('Average count')
+axes[1].set_xlabel('Time slot')
+axes[1].legend()
+axes[1].grid(alpha=0.2)
 
-pedestrian_plot_data = pedestrian_slot_frame.merge(pedestrian_in_plot, on='slot', how='left').merge(pedestrian_out_plot, on='slot', how='left').fillna(0)
-
-fig_ped, ax_ped = plt.subplots(figsize=(12, 6))
-ax_ped.plot(range(len(pedestrian_plot_data)), pedestrian_plot_data['avg_pedestrian_in'], marker='o', linewidth=2, label='Pedestrian In', color='tab:green')
-ax_ped.plot(range(len(pedestrian_plot_data)), pedestrian_plot_data['avg_pedestrian_out'], marker='s', linewidth=2, label='Pedestrian Out', color='tab:red')
-ax_ped.set_title('Pedestrian Counts by Hour')
-ax_ped.set_ylabel('Average count')
-ax_ped.set_xlabel('Time slot')
-ax_ped.set_xticks(range(len(pedestrian_plot_data)))
-ax_ped.set_xticklabels(pedestrian_plot_data['slot'], rotation=45)
-ax_ped.legend()
-ax_ped.grid(alpha=0.2)
 plt.tight_layout()
 plt.show()
