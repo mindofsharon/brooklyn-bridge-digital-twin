@@ -220,11 +220,21 @@ for _, row in pedestrian_week_avg_by_hour.iterrows():
 pedestrian_week_avg_by_hour_15min = pd.DataFrame(pedestrian_week_avg_by_hour_15min).sort_values('hour_minute')
 
 # -------------------------------
-# avg of bikes/pedestrians 
+# avg of bikes/pedestrians and sum of bikes/pedestrians by day of week
 # -------------------------------
 
 df['counts'].describe()
 df_pedestrian['pedestrian_count'].describe()
+
+# sum of bikes by day
+bikes_by_day = (
+    df.groupby(['day_of_week'], as_index=False)[['counts']].sum()
+)
+
+# sum of pedestrians by day
+pedestrian_by_day = (
+    df_pedestrian.groupby(['day_of_week'], as_index=False)[['pedestrian_count']].sum()
+)
 
 # -------------------------------
 # Plot bikes and pedestrians in one figure with two subplots
@@ -261,3 +271,15 @@ axes[1].grid(alpha=0.2)
 
 plt.tight_layout()
 plt.show()
+
+# -------------------------------
+# Combine bike and pedestrian data into one CSV file
+# -------------------------------
+
+plot_data.rename(columns={'manhattan bound': 'bike_manhattan_bound', 'brooklyn bound': 'bike_brooklyn_bound'}, inplace=True)
+plot_data_pedestrian.rename(columns={'manhattan bound': 'pedestrian_manhattan_bound', 'brooklyn bound': 'pedestrian_brooklyn_bound'}, inplace=True) 
+
+df_combined = pd.merge(plot_data, plot_data_pedestrian, on='hour_minute', how='outer')
+df_combined = df_combined[['hour_minute', 'bike_manhattan_bound', 'bike_brooklyn_bound', 'pedestrian_manhattan_bound', 'pedestrian_brooklyn_bound']]
+
+df_combined.to_csv('bike_pedestrian_counts_combined.csv', index=False)
