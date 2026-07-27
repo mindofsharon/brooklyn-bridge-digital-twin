@@ -15,6 +15,10 @@
 - **redesign.out.txt**: SIMAN report output
 - **baseline.out.txt**: SIMAN report output
 
+## Final Report
+
+- **ISYE6644_Group266Topic1_FinalReport.pdf**: Final Report
+
 
 ## Usage Instructions
 
@@ -22,9 +26,8 @@
 Clone the repository and run the Python script to convert the raw API data to simulation ready data
   ```bash
    python main.py
-   
    ```
-Data is also included in the zip file. 
+Data is also included in the zip file as bike_pedestrian_counts_combined.csv. 
 
 ### Step 2: Run the Arena Simulation 
 1. Open 'ISYE6644_BrooklynBridgeDigitalTwin_ArenaFiles_Group266GuptaSchwab.doe' in Arena
